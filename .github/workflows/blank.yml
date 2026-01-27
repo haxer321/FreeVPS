@@ -1,24 +1,22 @@
-name: Mine Monero XMR - Kryptex Pool (CPU via XMRig)
+name: Mine Monero XMR - Kryptex Pool (Scale to 10+ Instances)
 
 on:
-  workflow_dispatch:  # Run manually from the Actions tab
+  workflow_dispatch:  # Manual trigger (or add schedule if you want auto-restart)
 
 jobs:
   mine-monero:
-    runs-on: ubuntu-latest  # Change to [self-hosted, linux] if using your own runner!
-                            # GitHub-hosted runners block mining pools → use self-hosted for real mining
+    runs-on: [self-hosted, miner]  # All your miners should have this label (add during runner setup)
+    strategy:
+      matrix:
+        instance: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]  # Change to 20, 50 etc. for more
+      fail-fast: false  # Don't stop others if one fails
+    timeout-minutes: 10080  # 7 days – optional for long mining
 
     steps:
       - name: Install build dependencies
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y \
-            git \
-            build-essential \
-            cmake \
-            libuv1-dev \
-            libssl-dev \
-            libhwloc-dev
+          sudo apt-get install -y git build-essential cmake libuv1-dev libssl-dev libhwloc-dev
 
       - name: Clone and build latest XMRig
         run: |
@@ -27,7 +25,7 @@ jobs:
           cmake .. -DWITH_HWLOC=ON -DCMAKE_BUILD_TYPE=Release
           make -j$(nproc)
 
-      - name: Create config.json with your address
+      - name: Create config.json with unique rig name
         run: |
           cd xmrig/build
           cat > config.json << 'EOF'
@@ -41,15 +39,14 @@ jobs:
                       "algo": "rx/0",
                       "coin": "monero",
                       "url": "xmr.kryptex.network:7029",
-                      "user": "461ys28cKUvdh7JLedMUPu7QDE5CVaSyU35QtzJ9WwFS7pk4UA8fnncD6JtANLhgDSQFWT5YSADmpV6vwZh29S769kptmTm/Youssif-Rig-${{ github.run_id }}",
+                      "user": "461ys28cKUvdh7JLedMUPu7QDE5CVaSyU35QtzJ9WwFS7pk4UA8fnncD6JtANLhgDSQFWT5YSADmpV6vwZh29S769kptmTm/Miner-${{ matrix.instance }}-${{ github.run_id }}",
                       "pass": "x",
                       "tls": false,
                       "keepalive": true,
                       "nicehash": false
                   }
               ],
-              "donate-level": 0,
-              "donate-over-proxy": 0
+              "donate-level": 0
           }
           EOF
 
