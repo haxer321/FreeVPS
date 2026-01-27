@@ -12,44 +12,56 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # Step 1: Checkout your repo
-    - uses: actions/checkout@v3.5.2
+      # Step 1: Checkout repo
+      - uses: actions/checkout@v3
 
-    # Step 2: Prepare Linux environment
-    - name: Update Linux Packages
-      run: sudo apt-get update -y && sudo apt-get upgrade -y
+      # Step 2: Update Linux packages
+      - name: Update Linux Packages
+        run: sudo apt-get update -y && sudo apt-get upgrade -y
 
-    # Step 3: Install dependencies
-    - name: Install Required Packages
-      run: |
-        sudo apt-get install -y unzip curl sudo ssh
+      # Step 3: Install required dependencies
+      - name: Install Required Packages
+        run: |
+          sudo apt-get install -y unzip curl sudo ssh jq net-tools
 
-    # Step 4: Setup user (optional, uses secrets)
-    - name: Create Linux User
-      run: |
-        sudo useradd -m -s /bin/bash $LINUX_USERNAME || echo "User exists"
-        echo "$LINUX_USERNAME:$LINUX_USER_PASSWORD" | sudo chpasswd
-        sudo usermod -aG sudo $LINUX_USERNAME
-      env:
-        LINUX_USERNAME: ${{ secrets.LINUX_USERNAME }}
-        LINUX_USER_PASSWORD: ${{ secrets.LINUX_USER_PASSWORD }}
+      # Step 4: Create optional user
+      - name: Create Linux User
+        run: |
+          sudo useradd -m -s /bin/bash $LINUX_USERNAME || echo "User exists"
+          echo "$LINUX_USERNAME:$LINUX_USER_PASSWORD" | sudo chpasswd
+          sudo usermod -aG sudo $LINUX_USERNAME
+        env:
+          LINUX_USERNAME: ${{ secrets.LINUX_USERNAME }}
+          LINUX_USER_PASSWORD: ${{ secrets.LINUX_USER_PASSWORD }}
 
-    # Step 5: Install ngrok v3
-    - name: Install ngrok v3
-      run: |
-        # Add ngrok GPG key
-        curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
-        # Add ngrok repo
-        echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
-        sudo apt update
-        sudo apt install ngrok -y
-        # Authenticate ngrok
-        ngrok config add-authtoken $NGROK_AUTH_TOKEN
-        # Start SSH tunnel in background
-        nohup ngrok tcp 22 >/dev/null 2>&1 &
-      env:
-        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+      # Step 5: Install ngrok v3
+      - name: Install and Configure ngrok
+        run: |
+          # Add ngrok GPG key & repo
+          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+          sudo apt update
+          sudo apt install ngrok -y
 
-    # Step 6: Keep the VM alive for 6 hours
-    - name: Keep VM Running
-      run: sleep 6h
+          # Authenticate ngrok
+          ngrok config add-authtoken $NGROK_AUTH_TOKEN
+
+          # Start ngrok TCP tunnel in background
+          nohup ngrok tcp 22 --log=stdout > ngrok.log 2>&1 &
+
+          # Wait a few seconds for tunnel to initialize
+          sleep 5
+
+          # Print the public SSH URL
+          NGROK_URL=$(curl -s http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url')
+          echo "=== SSH ADDRESS ==="
+          echo "$NGROK_URL"
+          echo "Use: ssh $LINUX_USERNAME@$(echo $NGROK_URL | cut -d/ -f3) -p $(echo $NGROK_URL | cut -d: -f3)"
+
+        env:
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+          LINUX_USERNAME: ${{ secrets.LINUX_USERNAME }}
+
+      # Step 6: Keep VM alive up to 6 hours
+      - name: Keep VM Running
+        run: sleep 6h
