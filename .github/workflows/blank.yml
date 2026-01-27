@@ -1,29 +1,55 @@
-name: Ubuntu ssh Virtual Machine
-on: 
+name: Ubuntu SSH Virtual Machine
+
+on:
   workflow_dispatch:
+
 defaults:
   run:
     shell: bash
-    
-    
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
+    # Step 1: Checkout your repo
     - uses: actions/checkout@v3.5.2
-#    - name: If failed, means ok
-#      run: ./not-exist-file.sh it bloke build
-    - name: Preparing Linux Environment
-      run: sudo apt-get update
-    - name: Setting Up the Ubuntu Environment
-    #  if: ${{ failure() }}
-      run: bash linux-ssh.sh
+
+    # Step 2: Prepare Linux environment
+    - name: Update Linux Packages
+      run: sudo apt-get update -y && sudo apt-get upgrade -y
+
+    # Step 3: Install dependencies
+    - name: Install Required Packages
+      run: |
+        sudo apt-get install -y unzip curl sudo ssh
+
+    # Step 4: Setup user (optional, uses secrets)
+    - name: Create Linux User
+      run: |
+        sudo useradd -m -s /bin/bash $LINUX_USERNAME || echo "User exists"
+        echo "$LINUX_USERNAME:$LINUX_USER_PASSWORD" | sudo chpasswd
+        sudo usermod -aG sudo $LINUX_USERNAME
       env:
-        LINUX_USER_PASSWORD: ${{ secrets.LINUX_USER_PASSWORD }}
-        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-        CHROME_HEADLESS_CODE: ${{ secrets.CHROME_HEADLESS_CODE }}
-        LINUX_MACHINE_NAME: ${{ secrets.LINUX_MACHINE_NAME }}
         LINUX_USERNAME: ${{ secrets.LINUX_USERNAME }}
-    - name: Keep Running Ubuntu System and keepAlive
-     # if: ${{ failure() }}
+        LINUX_USER_PASSWORD: ${{ secrets.LINUX_USER_PASSWORD }}
+
+    # Step 5: Install ngrok v3
+    - name: Install ngrok v3
+      run: |
+        # Add ngrok GPG key
+        curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+        # Add ngrok repo
+        echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+        sudo apt update
+        sudo apt install ngrok -y
+        # Authenticate ngrok
+        ngrok config add-authtoken $NGROK_AUTH_TOKEN
+        # Start SSH tunnel in background
+        nohup ngrok tcp 22 >/dev/null 2>&1 &
+      env:
+        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+
+    # Step 6: Keep the VM alive for 6 hours
+    - name: Keep VM Running
       run: sleep 6h
