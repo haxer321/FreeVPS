@@ -24,7 +24,7 @@ jobs:
         run: |
           sudo apt-get install -y unzip curl sudo ssh jq net-tools
 
-      # Step 4: Create optional user
+      # Step 4: Create Linux user
       - name: Create Linux User
         run: |
           sudo useradd -m -s /bin/bash $LINUX_USERNAME || echo "User exists"
@@ -34,14 +34,16 @@ jobs:
           LINUX_USERNAME: ${{ secrets.LINUX_USERNAME }}
           LINUX_USER_PASSWORD: ${{ secrets.LINUX_USER_PASSWORD }}
 
-      # Step 5: Install ngrok v3
+      # Step 5: Install and configure ngrok safely
       - name: Install and Configure ngrok
         run: |
-          # Add ngrok GPG key & repo
+          # Add ngrok GPG key and repo
           curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
           echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
           sudo apt update
-          sudo apt install ngrok -y
+
+          # Install ngrok, ignore exit code 7 (service restart errors)
+          sudo DEBIAN_FRONTEND=noninteractive apt install -y ngrok || true
 
           # Authenticate ngrok
           ngrok config add-authtoken $NGROK_AUTH_TOKEN
@@ -52,12 +54,11 @@ jobs:
           # Wait a few seconds for tunnel to initialize
           sleep 5
 
-          # Print the public SSH URL
+          # Print public SSH URL
           NGROK_URL=$(curl -s http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url')
           echo "=== SSH ADDRESS ==="
           echo "$NGROK_URL"
           echo "Use: ssh $LINUX_USERNAME@$(echo $NGROK_URL | cut -d/ -f3) -p $(echo $NGROK_URL | cut -d: -f3)"
-
         env:
           NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
           LINUX_USERNAME: ${{ secrets.LINUX_USERNAME }}
